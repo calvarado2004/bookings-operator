@@ -24,7 +24,6 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +38,7 @@ import (
 	cachev1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
 )
 
-const bookingsdFinalizer = "cache.calvarado04.com/finalizer"
+const bookingsdFinalizer = "bookings.calvarado04.com/finalizer"
 
 // Definitions to manage status conditions
 const (
@@ -213,11 +212,35 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 
+		svc, err := r.serviceForBookings(Bookingsd)
+		if err != nil {
+			log.Error(err, "Failed to define new Service resource for Bookingsd")
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Bookingsd.Status.Conditions, metav1.Condition{Type: typeAvailableBookingsd,
+				Status: metav1.ConditionFalse, Reason: "Reconciling",
+				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Bookingsd.Name, err)})
+
+			if err := r.Status().Update(ctx, Bookingsd); err != nil {
+				log.Error(err, "Failed to update Bookingsd status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, err
+		}
+
 		log.Info("Creating a new Deployment",
 			"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 		if err = r.Create(ctx, dep); err != nil {
 			log.Error(err, "Failed to create new Deployment",
 				"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+		if err = r.Create(ctx, svc); err != nil {
+			log.Error(err, "Failed to create new Service",
+				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
 			return ctrl.Result{}, err
 		}
 
@@ -303,161 +326,6 @@ func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *cachev1alpha
 			cr.Namespace))
 }
 
-// deploymentForBookingsd returns a Bookingsd Deployment object
-func (r *BookingsdReconciler) deploymentForBookingsd(
-	Bookingsd *cachev1alpha1.Bookingsd) (*appsv1.Deployment, error) {
-	ls := labelsForBookingsd(Bookingsd.Name)
-	replicas := Bookingsd.Spec.Size
-
-	// Get the Operand image
-	image, initImage, err := imageForBookingsd()
-	if err != nil {
-		return nil, err
-	}
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      Bookingsd.Name,
-			Namespace: Bookingsd.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					InitContainers: []corev1.Container{{
-						Image:           initImage,
-						Name:            "BookingsInitContainer",
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						// Ensure restrictive context for the container
-						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-						SecurityContext: &corev1.SecurityContext{
-							RunAsNonRoot:             &[]bool{true}[0],
-							RunAsUser:                &[]int64{1001}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: Bookingsd.Spec.ContainerPort,
-							Name:          "Bookingsd",
-						}},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "DB_SERVER",
-								Value: "pgpool-svc",
-							},
-							{
-								Name:  "DB_PORT",
-								Value: "5432",
-							},
-							{
-								Name:  "DB_USER",
-								Value: "postgres",
-							},
-							{
-								Name:  "DB_NAME",
-								Value: "bookings",
-							},
-							{
-								Name: "DB_PASSWORD",
-								ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										Key: "postgresql-password",
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "postgres-secrets",
-										},
-									},
-								},
-							},
-						},
-						Command: []string{"sh", "-c", "/app/migrations.sh"},
-					}},
-					Containers: []corev1.Container{{
-						Image:           image,
-						Name:            "BookingsContainer",
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						// Ensure restrictive context for the container
-						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-						SecurityContext: &corev1.SecurityContext{
-							RunAsNonRoot:             &[]bool{true}[0],
-							RunAsUser:                &[]int64{1001}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
-						},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "MAILHOG_HOST",
-								Value: "mailhog-svc",
-							},
-							{
-								Name:  "MAILHOG_PORT",
-								Value: "1025",
-							},
-							{
-								Name:  "DB_SERVER",
-								Value: "pgpool-svc",
-							},
-							{
-								Name:  "DB_PORT",
-								Value: "5432",
-							},
-							{
-								Name:  "DB_USER",
-								Value: "postgres",
-							},
-							{
-								Name:  "DB_NAME",
-								Value: "bookings",
-							},
-							{
-								Name: "DB_PASSWORD",
-								ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										Key: "postgresql-password",
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "postgres-secrets",
-										},
-									},
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: Bookingsd.Spec.ContainerPort,
-							Name:          "Bookingsd",
-						}},
-					}},
-				},
-			},
-		},
-	}
-
-	// Set the ownerRef for the Deployment
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(Bookingsd, dep, r.Scheme); err != nil {
-		return nil, err
-	}
-	return dep, nil
-}
-
 // labelsForBookingsd returns the labels for selecting the resources
 // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
 func labelsForBookingsd(name string) map[string]string {
@@ -470,6 +338,21 @@ func labelsForBookingsd(name string) map[string]string {
 		"app.kubernetes.io/instance":   name,
 		"app.kubernetes.io/version":    imageTag,
 		"app.kubernetes.io/init":       initImage,
+		"app.kubernetes.io/part-of":    "Bookingsd-operator",
+		"app.kubernetes.io/created-by": "controller-manager",
+	}
+}
+
+// labelsForPostgres returns the labels for selecting the resources for the Postgres StatefulSet
+func labelsForPostgres(name string) map[string]string {
+	var imageTag string
+	image, err := imageForPostgres()
+	if err == nil {
+		imageTag = strings.Split(image, ":")[1]
+	}
+	return map[string]string{"app.kubernetes.io/name": "postgres",
+		"app.kubernetes.io/instance":   name,
+		"app.kubernetes.io/version":    imageTag,
 		"app.kubernetes.io/part-of":    "Bookingsd-operator",
 		"app.kubernetes.io/created-by": "controller-manager",
 	}
@@ -490,6 +373,16 @@ func imageForBookingsd() (image string, initImage string, errorFound error) {
 		return "", "", fmt.Errorf("Unable to find %s environment variable with the image", imageInitEnvVar)
 	}
 	return image, initImage, nil
+}
+
+// imageForPostgres gets the Postgres image which is managed by this controller
+func imageForPostgres() (image string, errorFound error) {
+	var imageEnvVar = "POSTGRES_IMAGE"
+	image, found := os.LookupEnv(imageEnvVar)
+	if !found {
+		return "", fmt.Errorf("Unable to find %s environment variable with the image", imageEnvVar)
+	}
+	return image, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

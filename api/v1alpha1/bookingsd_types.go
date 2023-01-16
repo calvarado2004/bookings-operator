@@ -60,8 +60,7 @@ type Bookingsd struct {
 	Status BookingsdStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // BookingsdList contains a list of Bookingsd
 type BookingsdList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -69,6 +68,38 @@ type BookingsdList struct {
 	Items           []Bookingsd `json:"items"`
 }
 
+type PostgresSpec struct {
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=3
+	// +kubebuilder:validation:ExclusiveMaximum=false
+	Size             int32  `json:"size,omitempty"`
+	ContainerPort    int32  `json:"containerPort,omitempty"`
+	StorageClassName string `json:"storageClassName,omitempty"`
+	StorageSize      string `json:"storageSize,omitempty"`
+}
+
+type PostgresStatus struct {
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+type Postgres struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PostgresSpec   `json:"spec,omitempty"`
+	Status PostgresStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+type PostgresList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Postgres `json:"items"`
+}
+
 func init() {
 	SchemeBuilder.Register(&Bookingsd{}, &BookingsdList{})
+	SchemeBuilder.Register(&Postgres{}, &PostgresList{})
 }
