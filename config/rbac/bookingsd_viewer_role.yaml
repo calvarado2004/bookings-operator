@@ -1,0 +1,27 @@
+# permissions for end users to view bookingsds.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: bookingsd-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: bookings-operator
+    app.kubernetes.io/part-of: bookings-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: bookingsd-viewer-role
+rules:
+- apiGroups:
+  - cache.calvarado04.com
+  resources:
+  - bookingsds
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cache.calvarado04.com
+  resources:
+  - bookingsds/status
+  verbs:
+  - get
