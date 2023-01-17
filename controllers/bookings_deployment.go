@@ -15,6 +15,29 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 	ls := labelsForBookingsd(Bookingsd.Name)
 	replicas := Bookingsd.Spec.Size
 
+	LabelSelectorRequirementVar := metav1.LabelSelectorRequirement{
+		Key:      "app.kubernetes.io/name",
+		Operator: "In",
+		Values:   []string{"bookings"},
+	}
+
+	PodAffinityTermVar := corev1.PodAffinityTerm{
+		LabelSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				LabelSelectorRequirementVar,
+			},
+		},
+		TopologyKey: "kubernetes.io/hostname",
+	}
+
+	AffinityVar := corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+				PodAffinityTermVar,
+			},
+		},
+	}
+
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Bookingsd.Name,
@@ -31,6 +54,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 				},
 				Spec: corev1.PodSpec{
 					SchedulerName: "stork",
+					Affinity:      &AffinityVar,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: &[]bool{true}[0],
 						SeccompProfile: &corev1.SeccompProfile{
