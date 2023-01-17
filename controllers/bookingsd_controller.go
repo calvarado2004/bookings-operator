@@ -333,8 +333,9 @@ func labelsForBookingsd(name string) map[string]string {
 	if err == nil {
 		imageTag = strings.Split(image, ":")[1]
 	}
-	return map[string]string{"app.kubernetes.io/name": "Bookingsd",
+	return map[string]string{
 		"app.kubernetes.io/instance":   name,
+		"app.kubernetes.io/name":       "bookings",
 		"app.kubernetes.io/version":    imageTag,
 		"app.kubernetes.io/init":       initImage,
 		"app.kubernetes.io/part-of":    "Bookingsd-operator",

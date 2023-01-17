@@ -141,7 +141,7 @@ func (r *PostgresReconciler) serviceForPostgres(Postgres *cachev1alpha1.Postgres
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
-				"app": "postgres",
+				"app.kubernetes.io/name": "postgres",
 			},
 			Ports: []corev1.ServicePort{
 				{

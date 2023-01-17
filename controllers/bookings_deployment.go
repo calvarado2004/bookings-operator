@@ -39,17 +39,10 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 					},
 					InitContainers: []corev1.Container{{
 						Image:           Bookingsd.Spec.InitContainerImage,
-						Name:            "init",
+						Name:            "init-bookings",
 						ImagePullPolicy: corev1.PullAlways,
 						SecurityContext: &corev1.SecurityContext{
-							RunAsNonRoot:             &[]bool{true}[0],
-							RunAsUser:                &[]int64{1001}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
+							AllowPrivilegeEscalation: &[]bool{true}[0],
 						},
 						Env: []corev1.EnvVar{
 							{
@@ -80,7 +73,6 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 								},
 							},
 						},
-						Command: []string{"sh", "-c", "/app/migrations.sh"},
 					}},
 					Containers: []corev1.Container{{
 						Image:           Bookingsd.Spec.ContainerImage,
@@ -88,13 +80,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						ImagePullPolicy: corev1.PullAlways,
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &[]bool{true}[0],
-							RunAsUser:                &[]int64{1001}[0],
 							AllowPrivilegeEscalation: &[]bool{false}[0],
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
 						},
 						Env: []corev1.EnvVar{
 							{
@@ -195,7 +181,7 @@ func (r *BookingsdReconciler) serviceForBookings(Bookingsd *cachev1alpha1.Bookin
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
-				"app": "bookings",
+				"app.kubernetes.io/name": "bookings",
 			},
 			Ports: []corev1.ServicePort{
 				{
