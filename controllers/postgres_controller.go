@@ -194,7 +194,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				return ctrl.Result{}, err
 			}
 
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, nil
 		}
 
 		svc, err := r.serviceForPostgres(Postgres)
@@ -211,32 +211,33 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				return ctrl.Result{}, err
 			}
 
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, nil
 		}
 
 		log.Info("Creating a new StatefulSet",
 			"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
-		if err = r.Create(ctx, sts); err != nil {
+		if err = r.Create(ctx, sts); err != nil && apierrors.IsNotFound(err) {
 			log.Error(err, "Failed to create new StatefulSet for Postgres",
 				"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
-			return ctrl.Result{}, err
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 
 		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-		if err = r.Create(ctx, svc); err != nil {
+		if err = r.Create(ctx, svc); err != nil && apierrors.IsNotFound(err) {
 			log.Error(err, "Failed to create new Service",
 				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-			return ctrl.Result{}, err
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 
-		// Deployment created successfully
+		// StatefulSet created successfully
 		// We will requeue the reconciliation so that we can ensure the state
 		// and move forward for the next operations
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
+
 	} else if err != nil {
 		log.Error(err, "Failed to get StatefulSet")
 		// Let's return the error for the reconciliation be re-trigged again
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// The CRD API is defining that the Postgres type, have a BookingsdSpec.Size field

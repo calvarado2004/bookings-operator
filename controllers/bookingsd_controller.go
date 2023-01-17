@@ -302,7 +302,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 }
 
 // doFinalizerOperationsForBookingsd will perform the required operations before delete the CR.
