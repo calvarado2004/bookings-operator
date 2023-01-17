@@ -35,6 +35,10 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 							Image:           Postgres.Spec.ContainerImage,
 							Name:            "postgres",
 							ImagePullPolicy: corev1.PullAlways,
+							SecurityContext: &corev1.SecurityContext{
+								Privileged:               &[]bool{true}[0],
+								AllowPrivilegeEscalation: &[]bool{true}[0],
+							},
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: Postgres.Spec.ContainerPort,
