@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"os"
 	"strings"
 	"time"
@@ -189,7 +190,48 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	// Check if the deployment already exists, if not create a new one
+	// Check if service already exists, if not create a new one
+	foundService := &corev1.Service{}
+	err = r.Get(ctx, types.NamespacedName{Name: "bookings-svc", Namespace: Bookingsd.Namespace}, foundService)
+	if err != nil && apierrors.IsNotFound(err) {
+
+		svc, err := r.serviceForBookings(Bookingsd)
+		if err != nil {
+			log.Error(err, "Failed to define new Service resource for Bookingsd")
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Bookingsd.Status.Conditions, metav1.Condition{Type: typeAvailableBookingsd,
+				Status: metav1.ConditionFalse, Reason: "Reconciling",
+				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Bookingsd.Name, err)})
+
+			if err := r.Status().Update(ctx, Bookingsd); err != nil {
+				log.Error(err, "Failed to update Bookingsd status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+		if err = r.Create(ctx, svc); err != nil {
+			log.Error(err, "Failed to create new Service",
+				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return ctrl.Result{}, err
+		}
+
+		// Service created successfully
+		// We will requeue the reconciliation so that we can ensure the state
+		// and move forward for the next operations
+
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+	} else if err != nil {
+		log.Error(err, "Failed to get Service")
+		// Let's return the error for the reconciliation be re-trigged again
+		return ctrl.Result{}, err
+	}
+
+	// Check if deployment already exists, if not create a new one
 	found := &appsv1.Deployment{}
 	err = r.Get(ctx, types.NamespacedName{Name: Bookingsd.Name, Namespace: Bookingsd.Namespace}, found)
 	if err != nil && apierrors.IsNotFound(err) {
@@ -211,35 +253,11 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 
-		svc, err := r.serviceForBookings(Bookingsd)
-		if err != nil {
-			log.Error(err, "Failed to define new Service resource for Bookingsd")
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&Bookingsd.Status.Conditions, metav1.Condition{Type: typeAvailableBookingsd,
-				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Bookingsd.Name, err)})
-
-			if err := r.Status().Update(ctx, Bookingsd); err != nil {
-				log.Error(err, "Failed to update Bookingsd status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{}, err
-		}
-
 		log.Info("Creating a new Deployment",
 			"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 		if err = r.Create(ctx, dep); err != nil {
 			log.Error(err, "Failed to create new Deployment",
 				"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-		if err = r.Create(ctx, svc); err != nil {
-			log.Error(err, "Failed to create new Service",
-				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
 			return ctrl.Result{}, err
 		}
 

@@ -51,6 +51,191 @@ type PostgresReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 
+func (r *PostgresReconciler) CreateSecret(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	// Check if Postgres secret exists, if not create it new
+	secretFound := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Name: "postgres-secrets", Namespace: Postgres.Namespace}, secretFound)
+	if err != nil && apierrors.IsNotFound(err) {
+		secret, err := r.secretUserForPostgres(Postgres)
+		if err != nil {
+			log.Error(err, "Failed to get secret for Postgres from controller")
+			return ctrl.Result{}, err
+		}
+
+		if err = r.Create(ctx, secret); err != nil {
+			log.Error(err, "Failed to create secret for Postgres on namespace")
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Secret for Postgres was created successfully", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+		// Secret created successfully
+		// We will requeue the reconciliation so that we can ensure the state
+		// and move forward for the next operations
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+	} else if err != nil {
+		log.Error(err, "Failed to get Secret")
+		// Let's return the error for the reconciliation be re-trigged again
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+}
+
+func (r *PostgresReconciler) CreateService(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	// Check if Postgres service exists, if not create it new
+	serviceFound := &corev1.Service{}
+	err := r.Get(ctx, types.NamespacedName{Name: "postgres-svc", Namespace: Postgres.Namespace}, serviceFound)
+	if err != nil && apierrors.IsNotFound(err) {
+		svc, err := r.serviceForPostgres(Postgres)
+		if err != nil {
+			log.Error(err, "Failed to define new Service resource for Postgres")
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailableBookingsd,
+				Status: metav1.ConditionFalse, Reason: "Reconciling",
+				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Postgres.Name, err)})
+
+			if err := r.Status().Update(ctx, Postgres); err != nil {
+				log.Error(err, "Failed to update Postgres status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+		if err = r.Create(ctx, svc); err != nil && apierrors.IsNotFound(err) {
+			log.Error(err, "Failed to create new Service",
+				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
+
+		// Service created successfully
+		// We will requeue the reconciliation so that we can ensure the state
+		// and move forward for the next operations
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+	} else if err != nil {
+		log.Error(err, "Failed to get Service")
+		// Let's return the error for the reconciliation be re-trigged again
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+}
+
+func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+
+	log := log.FromContext(ctx)
+
+	// Check if the StatefulSet already exists, if not create a new one
+	found := &appsv1.StatefulSet{}
+	err := r.Get(ctx, types.NamespacedName{Name: Postgres.Name, Namespace: Postgres.Namespace}, found)
+	if err != nil && apierrors.IsNotFound(err) {
+
+		// Define a new StatefulSet
+		sts, err := r.statefulSetForPostgres(Postgres)
+		if err != nil {
+			log.Error(err, "Failed to define new StatefulSet resource for Postgres")
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
+				Status: metav1.ConditionFalse, Reason: "Reconciling",
+				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", Postgres.Name, err)})
+
+			if err := r.Status().Update(ctx, Postgres); err != nil {
+				log.Error(err, "Failed to update Postgres status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		log.Info("Creating a new StatefulSet",
+			"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
+		if err = r.Create(ctx, sts); err != nil && apierrors.IsNotFound(err) {
+			log.Error(err, "Failed to create new StatefulSet for Postgres",
+				"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
+
+		// StatefulSet created successfully
+		// We will requeue the reconciliation so that we can ensure the state
+		// and move forward for the next operations
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+	} else if err != nil {
+		log.Error(err, "Failed to get StatefulSet")
+		// Let's return the error for the reconciliation be re-trigged again
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+}
+
+func (r *PostgresReconciler) UpdatePostgresSize(ctx context.Context, Postgres *cachev1alpha1.Postgres, found *appsv1.StatefulSet, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	// The CRD API is defining that the Postgres type, have a BookingsdSpec.Size field
+	// to set the quantity of Deployment instances is the desired state on the cluster.
+	// Therefore, the following code will ensure the Deployment size is the same as defined
+	// via the Size spec of the Custom Resource which we are reconciling.
+	size := Postgres.Spec.Size
+	if *found.Spec.Replicas != size {
+		found.Spec.Replicas = &size
+		if err := r.Update(ctx, found); err != nil {
+			log.Error(err, "Failed to update StatefulSet",
+				"StatefulSet.Namespace", found.Namespace, "StatefulSet.Name", found.Name)
+
+			// Re-fetch the Postgres Custom Resource before update the status
+			// so that we have the latest state of the resource on the cluster and we will avoid
+			// raise the issue "the object has been modified, please apply
+			// your changes to the latest version and try again" which would re-trigger the reconciliation
+			if err := r.Get(ctx, req.NamespacedName, Postgres); err != nil {
+				log.Error(err, "Failed to re-fetch Postgres")
+				return ctrl.Result{}, err
+			}
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
+				Status: metav1.ConditionFalse, Reason: "Resizing",
+				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", Postgres.Name, err)})
+
+			if err := r.Status().Update(ctx, Postgres); err != nil {
+				log.Error(err, "Failed to update Postgres status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, err
+		}
+
+		// Now, that we update the size we want to requeue the reconciliation
+		// so that we can ensure that we have the latest state of the resource before
+		// update. Also, it will help ensure the desired state on the cluster
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// The following implementation will update the status
+	meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
+		Status: metav1.ConditionTrue, Reason: "Reconciling",
+		Message: fmt.Sprintf("StatefulSet for custom resource (%s) with %d replicas created successfully", Postgres.Name, size)})
+
+	if err := r.Status().Update(ctx, Postgres); err != nil {
+		log.Error(err, "Failed to update Postgres status")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
 func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -155,141 +340,34 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	// Check if Postgres secret exists, if not create it new
-	secretFound := &corev1.Secret{}
-	err = r.Get(ctx, types.NamespacedName{Name: "postgres-secrets", Namespace: Postgres.Namespace}, secretFound)
-	if err != nil && apierrors.IsNotFound(err) {
-		secret, err := r.secretUserForPostgres(Postgres)
-		if err != nil {
-			log.Error(err, "Failed to get secret for Postgres from controller")
-			return ctrl.Result{}, err
-		}
-
-		if err = r.Create(ctx, secret); err != nil {
-			log.Error(err, "Failed to create secret for Postgres on namespace")
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Secret for Postgres was created successfully", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
-
-	}
-
-	// Check if the StatefulSet already exists, if not create a new one
-	found := &appsv1.StatefulSet{}
-	err = r.Get(ctx, types.NamespacedName{Name: Postgres.Name, Namespace: Postgres.Namespace}, found)
-	if err != nil && apierrors.IsNotFound(err) {
-
-		// Define a new StatefulSet
-		sts, err := r.statefulSetForPostgres(Postgres)
-		if err != nil {
-			log.Error(err, "Failed to define new StatefulSet resource for Postgres")
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", Postgres.Name, err)})
-
-			if err := r.Status().Update(ctx, Postgres); err != nil {
-				log.Error(err, "Failed to update Postgres status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{Requeue: true}, nil
-		}
-
-		svc, err := r.serviceForPostgres(Postgres)
-		if err != nil {
-			log.Error(err, "Failed to define new Service resource for Postgres")
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Postgres.Name, err)})
-
-			if err := r.Status().Update(ctx, Postgres); err != nil {
-				log.Error(err, "Failed to update Postgres status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{Requeue: true}, nil
-		}
-
-		log.Info("Creating a new StatefulSet",
-			"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
-		if err = r.Create(ctx, sts); err != nil && apierrors.IsNotFound(err) {
-			log.Error(err, "Failed to create new StatefulSet for Postgres",
-				"StatefulSet.Namespace", sts.Namespace, "StatefulSet.Name", sts.Name)
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
-		}
-
-		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-		if err = r.Create(ctx, svc); err != nil && apierrors.IsNotFound(err) {
-			log.Error(err, "Failed to create new Service",
-				"Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
-		}
-
-		// StatefulSet created successfully
-		// We will requeue the reconciliation so that we can ensure the state
-		// and move forward for the next operations
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
-
-	} else if err != nil {
-		log.Error(err, "Failed to get StatefulSet")
-		// Let's return the error for the reconciliation be re-trigged again
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// The CRD API is defining that the Postgres type, have a BookingsdSpec.Size field
-	// to set the quantity of Deployment instances is the desired state on the cluster.
-	// Therefore, the following code will ensure the Deployment size is the same as defined
-	// via the Size spec of the Custom Resource which we are reconciling.
-	size := Postgres.Spec.Size
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		if err = r.Update(ctx, found); err != nil {
-			log.Error(err, "Failed to update StatefulSet",
-				"StatefulSet.Namespace", found.Namespace, "StatefulSet.Name", found.Name)
-
-			// Re-fetch the Postgres Custom Resource before update the status
-			// so that we have the latest state of the resource on the cluster and we will avoid
-			// raise the issue "the object has been modified, please apply
-			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, Postgres); err != nil {
-				log.Error(err, "Failed to re-fetch Postgres")
-				return ctrl.Result{}, err
-			}
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", Postgres.Name, err)})
-
-			if err := r.Status().Update(ctx, Postgres); err != nil {
-				log.Error(err, "Failed to update Postgres status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{}, err
-		}
-
-		// Now, that we update the size we want to requeue the reconciliation
-		// so that we can ensure that we have the latest state of the resource before
-		// update. Also, it will help ensure the desired state on the cluster
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// The following implementation will update the status
-	meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("StatefulSet for custom resource (%s) with %d replicas created successfully", Postgres.Name, size)})
-
-	if err := r.Status().Update(ctx, Postgres); err != nil {
-		log.Error(err, "Failed to update Postgres status")
+	_, err = r.CreateSecret(ctx, Postgres)
+	if err != nil {
+		log.Error(err, "Failed to create Secret")
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	_, err = r.CreateService(ctx, Postgres)
+	if err != nil {
+		log.Error(err, "Failed to create Service")
+		return ctrl.Result{}, err
+	}
+
+	_, err = r.CreateStatefulSet(ctx, Postgres)
+	if err != nil {
+		log.Error(err, "Failed to create StatefulSet")
+		return ctrl.Result{}, err
+	}
+
+	found := &appsv1.StatefulSet{}
+
+	_, err = r.UpdatePostgresSize(ctx, Postgres, found, req)
+	if err != nil {
+		log.Error(err, "Failed to update Postgres size")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{Requeue: true}, nil
+
 }
 
 // doFinalizerOperationsForPostgres will perform the required operations before delete the CR.
