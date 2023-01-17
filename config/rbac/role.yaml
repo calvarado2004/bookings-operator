@@ -18,6 +18,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - bookings.calvarado04.com
   resources:
   - bookingsds
@@ -44,17 +56,44 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ""
+  - bookings.calvarado04.com
   resources:
-  - events
+  - postgres
   verbs:
   - create
+  - delete
+  - get
+  - list
   - patch
+  - update
+  - watch
+- apiGroups:
+  - bookings.calvarado04.com
+  resources:
+  - postgres/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - bookings.calvarado04.com
+  resources:
+  - postgres/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  - events
   - pods
+  - secrets
+  - services
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch

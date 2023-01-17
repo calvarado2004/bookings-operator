@@ -15,19 +15,15 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 	ls := labelsForPostgres(Postgres.Name)
 	replicas := Postgres.Spec.Size
 
-	// Get the Operand image
-	image, err := imageForPostgres()
-	if err != nil {
-		return nil, err
-	}
-
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Postgres.Name,
 			Namespace: Postgres.Namespace,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Selector: &metav1.LabelSelector{},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: ls,
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: ls,
@@ -36,9 +32,46 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 					SchedulerName: "stork",
 					Containers: []corev1.Container{
 						{
-							Image:           image,
-							Name:            "PostgresContainer",
+							Image:           Postgres.Spec.ContainerImage,
+							Name:            "postgres",
 							ImagePullPolicy: corev1.PullAlways,
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: Postgres.Spec.ContainerPort,
+									Name:          "postgres",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "POSTGRES_USER",
+									Value: Postgres.Spec.PostgresUser,
+								},
+								{
+									Name: "POSTGRES_PASSWORD",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											Key: "postgresql-password",
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: "postgres-secrets",
+											},
+										},
+									},
+								},
+								{
+									Name:  "POSTGRES_DB",
+									Value: Postgres.Spec.PostgresDatabase,
+								},
+								{
+									Name:  "PGDATA",
+									Value: "/var/lib/postgresql/data",
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "postgres-persistent-storage",
+									MountPath: "/var/lib/postgresql/data",
+								},
+							},
 						},
 					},
 				},
@@ -46,7 +79,7 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 			Replicas: &replicas,
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "data",
+					Name: "postgres-persistent-storage",
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -71,6 +104,28 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 		return nil, err
 	}
 	return sts, nil
+}
+
+func (r *PostgresReconciler) secretUserForPostgres(Postgres *cachev1alpha1.Postgres) (secretPostgres *corev1.Secret, err error) {
+	ls := labelsForPostgres(Postgres.Name)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "postgres-secrets",
+			Namespace: Postgres.Namespace,
+			Labels:    ls,
+		},
+		StringData: map[string]string{
+			"postgresql-password": Postgres.Spec.PostgresPassword,
+		},
+	}
+
+	// Set the ownerRef for the Secret
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
+	if err := ctrl.SetControllerReference(Postgres, secret, r.Scheme); err != nil {
+		return nil, err
+	}
+	return secret, nil
 }
 
 func (r *PostgresReconciler) serviceForPostgres(Postgres *cachev1alpha1.Postgres) (servicePostgres *corev1.Service, err error) {

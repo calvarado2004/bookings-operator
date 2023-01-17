@@ -35,9 +35,25 @@ spec:
           spec:
             description: BookingsdSpec defines the desired state of Bookingsd
             properties:
+              containerImage:
+                type: string
               containerPort:
                 format: int32
                 type: integer
+              dbName:
+                type: string
+              dbPort:
+                type: string
+              dbServer:
+                type: string
+              dbUser:
+                type: string
+              initContainerImage:
+                type: string
+              mailhogHost:
+                type: string
+              mailhogPort:
+                type: string
               size:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file
@@ -47,6 +63,15 @@ spec:
                 maximum: 3
                 minimum: 1
                 type: integer
+            required:
+            - containerImage
+            - containerPort
+            - dbName
+            - dbPort
+            - dbServer
+            - dbUser
+            - initContainerImage
+            - size
             type: object
           status:
             description: BookingsdStatus defines the observed state of Bookingsd
@@ -59,7 +84,7 @@ spec:
                   be a CamelCase string and producers of specific condition types
                   may define expected values and meanings for this field, and whether
                   the values are considered a guaranteed API. Bookingsd.status.conditions.Message
-                  is a human readable message indicating details about the transition.'
+                  is a human-readable message indicating details about the transition.'
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
@@ -128,6 +153,8 @@ spec:
                   type: object
                 type: array
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

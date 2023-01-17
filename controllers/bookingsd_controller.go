@@ -62,9 +62,8 @@ type BookingsdReconciler struct {
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=bookingsds,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=bookingsds/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=bookingsds/finalizers,verbs=update
-//+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=core,resources=pods;services;events;secrets;configmaps,verbs=create;patch;update;delete;get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -306,7 +305,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-// finalizeBookingsd will perform the required operations before delete the CR.
+// doFinalizerOperationsForBookingsd will perform the required operations before delete the CR.
 func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *cachev1alpha1.Bookingsd) {
 	// TODO(user): Add the cleanup steps that the operator
 	// needs to do before the CR can be deleted. Examples
@@ -343,21 +342,6 @@ func labelsForBookingsd(name string) map[string]string {
 	}
 }
 
-// labelsForPostgres returns the labels for selecting the resources for the Postgres StatefulSet
-func labelsForPostgres(name string) map[string]string {
-	var imageTag string
-	image, err := imageForPostgres()
-	if err == nil {
-		imageTag = strings.Split(image, ":")[1]
-	}
-	return map[string]string{"app.kubernetes.io/name": "postgres",
-		"app.kubernetes.io/instance":   name,
-		"app.kubernetes.io/version":    imageTag,
-		"app.kubernetes.io/part-of":    "Bookingsd-operator",
-		"app.kubernetes.io/created-by": "controller-manager",
-	}
-}
-
 // imageForBookingsd gets the Operand image which is managed by this controller
 // from the BOOKINGS_IMAGE environment variable defined in the config/manager/manager.yaml
 func imageForBookingsd() (image string, initImage string, errorFound error) {
@@ -373,16 +357,6 @@ func imageForBookingsd() (image string, initImage string, errorFound error) {
 		return "", "", fmt.Errorf("Unable to find %s environment variable with the image", imageInitEnvVar)
 	}
 	return image, initImage, nil
-}
-
-// imageForPostgres gets the Postgres image which is managed by this controller
-func imageForPostgres() (image string, errorFound error) {
-	var imageEnvVar = "POSTGRES_IMAGE"
-	image, found := os.LookupEnv(imageEnvVar)
-	if !found {
-		return "", fmt.Errorf("Unable to find %s environment variable with the image", imageEnvVar)
-	}
-	return image, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

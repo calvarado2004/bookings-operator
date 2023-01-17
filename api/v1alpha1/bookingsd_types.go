@@ -32,8 +32,16 @@ type BookingsdSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
-	Size          int32 `json:"size,omitempty"`
-	ContainerPort int32 `json:"containerPort,omitempty"`
+	Size               int32  `json:"size"`
+	ContainerPort      int32  `json:"containerPort"`
+	DbServer           string `json:"dbServer"`
+	DbPort             string `json:"dbPort"`
+	DbUser             string `json:"dbUser"`
+	DbName             string `json:"dbName"`
+	MailhogHost        string `json:"mailhogHost,omitempty"`
+	MailhogPort        string `json:"mailhogPort,omitempty"`
+	InitContainerImage string `json:"initContainerImage"`
+	ContainerImage     string `json:"containerImage"`
 }
 
 // BookingsdStatus defines the observed state of Bookingsd
@@ -44,7 +52,7 @@ type BookingsdStatus struct {
 	// Bookingsd.status.conditions.reason the value should be a CamelCase string and producers of specific
 	// condition types may define expected values and meanings for this field, and whether the values
 	// are considered a guaranteed API.
-	// Bookingsd.status.conditions.Message is a human readable message indicating details about the transition.
+	// Bookingsd.status.conditions.Message is a human-readable message indicating details about the transition.
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
@@ -56,7 +64,7 @@ type Bookingsd struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   BookingsdSpec   `json:"spec,omitempty"`
+	Spec   BookingsdSpec   `json:"spec"`
 	Status BookingsdStatus `json:"status,omitempty"`
 }
 
@@ -69,13 +77,17 @@ type BookingsdList struct {
 }
 
 type PostgresSpec struct {
-	// +kubebuilder:validation:Minimum=2
-	// +kubebuilder:validation:Maximum=3
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1
 	// +kubebuilder:validation:ExclusiveMaximum=false
-	Size             int32  `json:"size,omitempty"`
-	ContainerPort    int32  `json:"containerPort,omitempty"`
-	StorageClassName string `json:"storageClassName,omitempty"`
-	StorageSize      string `json:"storageSize,omitempty"`
+	Size             int32  `json:"size"`
+	ContainerPort    int32  `json:"containerPort"`
+	StorageClassName string `json:"storageClassName"`
+	StorageSize      string `json:"storageSize"`
+	PostgresUser     string `json:"postgresUser"`
+	PostgresPassword string `json:"postgresPassword"`
+	PostgresDatabase string `json:"postgresDatabase"`
+	ContainerImage   string `json:"containerImage"`
 }
 
 type PostgresStatus struct {
@@ -88,7 +100,7 @@ type Postgres struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PostgresSpec   `json:"spec,omitempty"`
+	Spec   PostgresSpec   `json:"spec"`
 	Status PostgresStatus `json:"status,omitempty"`
 }
 

@@ -33,18 +33,35 @@ spec:
             type: object
           spec:
             properties:
+              containerImage:
+                type: string
               containerPort:
                 format: int32
                 type: integer
+              postgresDatabase:
+                type: string
+              postgresPassword:
+                type: string
+              postgresUser:
+                type: string
               size:
                 format: int32
-                maximum: 3
-                minimum: 2
+                maximum: 1
+                minimum: 1
                 type: integer
               storageClassName:
                 type: string
               storageSize:
                 type: string
+            required:
+            - containerImage
+            - containerPort
+            - postgresDatabase
+            - postgresPassword
+            - postgresUser
+            - size
+            - storageClassName
+            - storageSize
             type: object
           status:
             properties:
@@ -117,6 +134,8 @@ spec:
                   type: object
                 type: array
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

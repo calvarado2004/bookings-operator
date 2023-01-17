@@ -72,7 +72,6 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "277e429d.calvarado04.com",
-		Namespace:              "bookings",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -89,6 +88,15 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	if err = (&controllers.PostgresReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Postgres")
+		os.Exit(1)
+	}
+	//+kubebuilder:scaffold:builder
 
 	if err = (&controllers.BookingsdReconciler{
 		Client: mgr.GetClient(),

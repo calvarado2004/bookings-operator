@@ -15,12 +15,6 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 	ls := labelsForBookingsd(Bookingsd.Name)
 	replicas := Bookingsd.Spec.Size
 
-	// Get the Operand image
-	image, initImage, err := imageForBookingsd()
-	if err != nil {
-		return nil, err
-	}
-
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Bookingsd.Name,
@@ -44,8 +38,8 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						},
 					},
 					InitContainers: []corev1.Container{{
-						Image:           initImage,
-						Name:            "BookingsInitContainer",
+						Image:           Bookingsd.Spec.InitContainerImage,
+						Name:            "init",
 						ImagePullPolicy: corev1.PullAlways,
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &[]bool{true}[0],
@@ -60,19 +54,19 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						Env: []corev1.EnvVar{
 							{
 								Name:  "DB_SERVER",
-								Value: "pgpool-svc",
+								Value: Bookingsd.Spec.DbServer,
 							},
 							{
 								Name:  "DB_PORT",
-								Value: "5432",
+								Value: Bookingsd.Spec.DbPort,
 							},
 							{
 								Name:  "DB_USER",
-								Value: "postgres",
+								Value: Bookingsd.Spec.DbUser,
 							},
 							{
 								Name:  "DB_NAME",
-								Value: "bookings",
+								Value: Bookingsd.Spec.DbName,
 							},
 							{
 								Name: "DB_PASSWORD",
@@ -89,8 +83,8 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						Command: []string{"sh", "-c", "/app/migrations.sh"},
 					}},
 					Containers: []corev1.Container{{
-						Image:           image,
-						Name:            "BookingsContainer",
+						Image:           Bookingsd.Spec.ContainerImage,
+						Name:            "bookings",
 						ImagePullPolicy: corev1.PullAlways,
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &[]bool{true}[0],
@@ -105,27 +99,27 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						Env: []corev1.EnvVar{
 							{
 								Name:  "MAILHOG_HOST",
-								Value: "mailhog-svc",
+								Value: Bookingsd.Spec.MailhogHost,
 							},
 							{
 								Name:  "MAILHOG_PORT",
-								Value: "1025",
+								Value: Bookingsd.Spec.MailhogPort,
 							},
 							{
 								Name:  "DB_SERVER",
-								Value: "pgpool-svc",
+								Value: Bookingsd.Spec.DbServer,
 							},
 							{
 								Name:  "DB_PORT",
-								Value: "5432",
+								Value: Bookingsd.Spec.DbPort,
 							},
 							{
 								Name:  "DB_USER",
-								Value: "postgres",
+								Value: Bookingsd.Spec.DbUser,
 							},
 							{
 								Name:  "DB_NAME",
-								Value: "bookings",
+								Value: Bookingsd.Spec.DbName,
 							},
 							{
 								Name: "DB_PASSWORD",
@@ -141,7 +135,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 						},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: Bookingsd.Spec.ContainerPort,
-							Name:          "BookingsPort",
+							Name:          "http",
 							Protocol:      corev1.ProtocolTCP,
 						}},
 						Resources: corev1.ResourceRequirements{

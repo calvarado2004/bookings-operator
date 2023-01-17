@@ -1,12 +1,40 @@
-apiVersion: cache.calvarado04.com/v1alpha1
-kind: Bookingsd
+apiVersion: bookings.calvarado04.com/v1alpha1
+kind: Postgres
 metadata:
   labels:
-    app.kubernetes.io/name: bookingsd
-    app.kubernetes.io/instance: bookingsd-sample
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-app
     app.kubernetes.io/part-of: bookings-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: bookings-operator
-  name: bookingsd-sample
+  name: postgres
 spec:
-  # TODO(user): Add fields here
+  size: 1
+  containerPort: 5432
+  storageClassName: portworx-db-sc
+  storageSize: 3Gi
+  postgresDatabase: bookings
+  postgresUser: postgres
+  postgresPassword: postgres
+  containerImage: "postgres:14.5"
+---
+apiVersion: bookings.calvarado04.com/v1alpha1
+kind: Bookingsd
+metadata:
+  labels:
+    app.kubernetes.io/name: bookings
+    app.kubernetes.io/instance: bookings-app
+    app.kubernetes.io/part-of: bookings-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: bookings-operator
+  name: bookings
+spec:
+ size: 2
+ containerPort: 8080
+ dbServer: postgres-svc
+ dbPort: "5432"
+ dbUser: postgres
+ dbName: bookings
+ initContainerImage: "calvarado2004/bookings-init:latest"
+ containerImage: "calvarado2004/bookings:latest"
+

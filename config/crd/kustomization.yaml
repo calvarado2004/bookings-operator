@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/bookings.calvarado04.com_bookingsds.yaml
+- bases/bookings.calvarado04.com_postgres.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
