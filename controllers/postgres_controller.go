@@ -181,61 +181,6 @@ func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *ca
 
 }
 
-func (r *PostgresReconciler) UpdatePostgresSize(ctx context.Context, Postgres *cachev1alpha1.Postgres, found appsv1.StatefulSet, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
-	// The CRD API is defining that the Postgres type, have a BookingsdSpec.Size field
-	// to set the quantity of Deployment instances is the desired state on the cluster.
-	// Therefore, the following code will ensure the Deployment size is the same as defined
-	// via the Size spec of the Custom Resource which we are reconciling.
-	size := Postgres.Spec.Size
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		if err := r.Update(ctx, &found); err != nil {
-			log.Error(err, "Failed to update StatefulSet",
-				"StatefulSet.Namespace", found.Namespace, "StatefulSet.Name", found.Name)
-
-			// Re-fetch the Postgres Custom Resource before update the status
-			// so that we have the latest state of the resource on the cluster and we will avoid
-			// raise the issue "the object has been modified, please apply
-			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, Postgres); err != nil {
-				log.Error(err, "Failed to re-fetch Postgres")
-				return ctrl.Result{}, err
-			}
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", Postgres.Name, err)})
-
-			if err := r.Status().Update(ctx, Postgres); err != nil {
-				log.Error(err, "Failed to update Postgres status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{}, err
-		}
-
-		// Now, that we update the size we want to requeue the reconciliation
-		// so that we can ensure that we have the latest state of the resource before
-		// update. Also, it will help ensure the desired state on the cluster
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// The following implementation will update the status
-	meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
-		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("StatefulSet for custom resource (%s) with %d replicas created successfully", Postgres.Name, size)})
-
-	if err := r.Status().Update(ctx, Postgres); err != nil {
-		log.Error(err, "Failed to update Postgres status")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
-}
-
 func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -355,14 +300,6 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	_, err = r.CreateStatefulSet(ctx, Postgres)
 	if err != nil {
 		log.Error(err, "Failed to create StatefulSet")
-		return ctrl.Result{}, err
-	}
-
-	found := &appsv1.StatefulSet{}
-
-	_, err = r.UpdatePostgresSize(ctx, Postgres, *found, req)
-	if err != nil {
-		log.Error(err, "Failed to update Postgres size")
 		return ctrl.Result{}, err
 	}
 
