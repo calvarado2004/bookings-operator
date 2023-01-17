@@ -58,18 +58,32 @@ func (r *PostgresReconciler) CreateSecret(ctx context.Context, Postgres *cachev1
 	secretFound := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Name: "postgres-secrets", Namespace: Postgres.Namespace}, secretFound)
 	if err != nil && apierrors.IsNotFound(err) {
+
 		secret, err := r.secretUserForPostgres(Postgres)
 		if err != nil {
-			log.Error(err, "Failed to get secret for Postgres from controller")
+			log.Error(err, "Failed to create Secret resource for Postgres")
+
+			// The following implementation will update the status
+			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
+				Status: metav1.ConditionFalse, Reason: "Reconciling",
+				Message: fmt.Sprintf("Failed to create Secret for the custom resource (%s): (%s)", Postgres.Name, err)})
+
+			if err := r.Status().Update(ctx, Postgres); err != nil {
+				log.Error(err, "Failed to update Postgres status")
+				return ctrl.Result{}, err
+			}
+
 			return ctrl.Result{}, err
 		}
 
-		if err = r.Create(ctx, secret); err != nil {
+		log.Info("Creating a new Secret", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+		if err = r.Create(ctx, secret); err != nil && apierrors.IsNotFound(err) {
 			log.Error(err, "Failed to create secret for Postgres on namespace")
-			return ctrl.Result{}, err
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 
 		log.Info("Secret for Postgres was created successfully", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+
 		// Secret created successfully
 		// We will requeue the reconciliation so that we can ensure the state
 		// and move forward for the next operations
@@ -97,7 +111,7 @@ func (r *PostgresReconciler) CreateService(ctx context.Context, Postgres *cachev
 			log.Error(err, "Failed to define new Service resource for Postgres")
 
 			// The following implementation will update the status
-			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailableBookingsd,
+			meta.SetStatusCondition(&Postgres.Status.Conditions, metav1.Condition{Type: typeAvailablePostgres,
 				Status: metav1.ConditionFalse, Reason: "Reconciling",
 				Message: fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", Postgres.Name, err)})
 
@@ -155,7 +169,7 @@ func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *ca
 				return ctrl.Result{}, err
 			}
 
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{}, err
 		}
 
 		log.Info("Creating a new StatefulSet",
@@ -174,7 +188,7 @@ func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *ca
 	} else if err != nil {
 		log.Error(err, "Failed to get StatefulSet")
 		// Let's return the error for the reconciliation be re-trigged again
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
