@@ -181,7 +181,7 @@ func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *ca
 
 }
 
-func (r *PostgresReconciler) UpdatePostgresSize(ctx context.Context, Postgres *cachev1alpha1.Postgres, found *appsv1.StatefulSet, req ctrl.Request) (ctrl.Result, error) {
+func (r *PostgresReconciler) UpdatePostgresSize(ctx context.Context, Postgres *cachev1alpha1.Postgres, found appsv1.StatefulSet, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// The CRD API is defining that the Postgres type, have a BookingsdSpec.Size field
@@ -191,7 +191,7 @@ func (r *PostgresReconciler) UpdatePostgresSize(ctx context.Context, Postgres *c
 	size := Postgres.Spec.Size
 	if *found.Spec.Replicas != size {
 		found.Spec.Replicas = &size
-		if err := r.Update(ctx, found); err != nil {
+		if err := r.Update(ctx, &found); err != nil {
 			log.Error(err, "Failed to update StatefulSet",
 				"StatefulSet.Namespace", found.Namespace, "StatefulSet.Name", found.Name)
 
@@ -360,7 +360,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	found := &appsv1.StatefulSet{}
 
-	_, err = r.UpdatePostgresSize(ctx, Postgres, found, req)
+	_, err = r.UpdatePostgresSize(ctx, Postgres, *found, req)
 	if err != nil {
 		log.Error(err, "Failed to update Postgres size")
 		return ctrl.Result{}, err
