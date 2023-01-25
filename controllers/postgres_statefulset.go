@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	cachev1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
+	bookingsv1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -11,7 +11,7 @@ import (
 )
 
 // statefulSetForPostgres returns a Postgres StatefulSet object
-func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Postgres) (*appsv1.StatefulSet, error) {
+func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.Postgres) (*appsv1.StatefulSet, error) {
 	ls := labelsForPostgres(Postgres.Name)
 	replicas := Postgres.Spec.Size
 
@@ -110,7 +110,7 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *cachev1alpha1.Post
 	return sts, nil
 }
 
-func (r *PostgresReconciler) secretUserForPostgres(Postgres *cachev1alpha1.Postgres) (secretPostgres *corev1.Secret, err error) {
+func (r *PostgresReconciler) secretUserForPostgres(Postgres *bookingsv1alpha1.Postgres) (secretPostgres *corev1.Secret, err error) {
 	ls := labelsForPostgres(Postgres.Name)
 
 	secret := &corev1.Secret{
@@ -132,7 +132,7 @@ func (r *PostgresReconciler) secretUserForPostgres(Postgres *cachev1alpha1.Postg
 	return secret, nil
 }
 
-func (r *PostgresReconciler) serviceForPostgres(Postgres *cachev1alpha1.Postgres) (servicePostgres *corev1.Service, err error) {
+func (r *PostgresReconciler) serviceForPostgres(Postgres *bookingsv1alpha1.Postgres) (servicePostgres *corev1.Service, err error) {
 	// Define the Service
 	servicePostgres = &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{

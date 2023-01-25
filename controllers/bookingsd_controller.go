@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	cachev1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
+	bookingsv1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
 )
 
 const bookingsdFinalizer = "bookings.calvarado04.com/finalizer"
@@ -84,7 +84,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the Bookingsd instance
 	// The purpose is check if the Custom Resource for the Kind Bookingsd
 	// is applied on the cluster if not we return nil to stop the reconciliation
-	Bookingsd := &cachev1alpha1.Bookingsd{}
+	Bookingsd := &bookingsv1alpha1.Bookingsd{}
 	err := r.Get(ctx, req.NamespacedName, Bookingsd)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -324,7 +324,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // doFinalizerOperationsForBookingsd will perform the required operations before delete the CR.
-func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *cachev1alpha1.Bookingsd) {
+func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1alpha1.Bookingsd) {
 	// TODO(user): Add the cleanup steps that the operator
 	// needs to do before the CR can be deleted. Examples
 	// of finalizers include performing backups and deleting
@@ -383,7 +383,7 @@ func imageForBookingsd() (image string, initImage string, errorFound error) {
 // desirable state on the cluster
 func (r *BookingsdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cachev1alpha1.Bookingsd{}).
+		For(&bookingsv1alpha1.Bookingsd{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

@@ -3,7 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	cachev1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
+	bookingsv1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -51,7 +51,7 @@ type PostgresReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 
-func (r *PostgresReconciler) CreateSecret(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+func (r *PostgresReconciler) CreateSecret(ctx context.Context, Postgres *bookingsv1alpha1.Postgres) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// Check if Postgres secret exists, if not create it new
@@ -99,7 +99,7 @@ func (r *PostgresReconciler) CreateSecret(ctx context.Context, Postgres *cachev1
 
 }
 
-func (r *PostgresReconciler) CreateService(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+func (r *PostgresReconciler) CreateService(ctx context.Context, Postgres *bookingsv1alpha1.Postgres) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// Check if Postgres service exists, if not create it new
@@ -145,7 +145,7 @@ func (r *PostgresReconciler) CreateService(ctx context.Context, Postgres *cachev
 
 }
 
-func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *cachev1alpha1.Postgres) (ctrl.Result, error) {
+func (r *PostgresReconciler) CreateStatefulSet(ctx context.Context, Postgres *bookingsv1alpha1.Postgres) (ctrl.Result, error) {
 
 	log := log.FromContext(ctx)
 
@@ -201,7 +201,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Fetch the Postgres instance
 	// The purpose is check if the Custom Resource for the Kind Postgres
 	// is applied on the cluster if not we return nil to stop the reconciliation
-	Postgres := &cachev1alpha1.Postgres{}
+	Postgres := &bookingsv1alpha1.Postgres{}
 	err := r.Get(ctx, req.NamespacedName, Postgres)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -322,7 +322,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 // doFinalizerOperationsForPostgres will perform the required operations before delete the CR.
-func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *cachev1alpha1.Postgres) {
+func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alpha1.Postgres) {
 
 	// The following implementation will raise an event
 	r.Recorder.Event(cr, "Warning", "Deleting",
@@ -361,7 +361,7 @@ func imageForPostgres() (image string, errorFound error) {
 // desirable state on the cluster
 func (r *PostgresReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cachev1alpha1.Postgres{}).
+		For(&bookingsv1alpha1.Postgres{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

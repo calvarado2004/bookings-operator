@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	cachev1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
+	bookingsv1alpha1 "github.com/calvarado2004/bookings-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -11,7 +11,7 @@ import (
 )
 
 // deploymentForBookingsd returns a Bookingsd Deployment object
-func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bookingsd) (*appsv1.Deployment, error) {
+func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1.Bookingsd) (*appsv1.Deployment, error) {
 	ls := labelsForBookingsd(Bookingsd.Name)
 	replicas := Bookingsd.Spec.Size
 
@@ -196,7 +196,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *cachev1alpha1.Bo
 	return dep, nil
 }
 
-func (r *BookingsdReconciler) serviceForBookings(Bookingsd *cachev1alpha1.Bookingsd) (serviceBookings *corev1.Service, err error) {
+func (r *BookingsdReconciler) serviceForBookings(Bookingsd *bookingsv1alpha1.Bookingsd) (serviceBookings *corev1.Service, err error) {
 	// Define the Service
 	serviceBookings = &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
