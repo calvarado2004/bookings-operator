@@ -12,15 +12,21 @@ import (
 
 // deploymentForBookingsd returns a Bookingsd Deployment object
 func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1.Bookingsd) (*appsv1.Deployment, error) {
+
+	// Labels
 	ls := labelsForBookingsd(Bookingsd.Name)
+
+	// Replicas
 	replicas := Bookingsd.Spec.Size
 
+	// Label Selector Requirements
 	LabelSelectorRequirementVar := metav1.LabelSelectorRequirement{
 		Key:      "app.kubernetes.io/name",
 		Operator: "In",
 		Values:   []string{"bookings"},
 	}
 
+	// Pod Affinity definition
 	PodAffinityTermVar := corev1.PodAffinityTerm{
 		LabelSelector: &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -30,6 +36,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 		TopologyKey: "kubernetes.io/hostname",
 	}
 
+	// Pod Anti Affinity
 	AffinityVar := corev1.Affinity{
 		PodAntiAffinity: &corev1.PodAntiAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -38,7 +45,115 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 		},
 	}
 
-	dep := &appsv1.Deployment{
+	// DB password for the DB connection from a Kubernetes secret
+	PasswordSecret := corev1.SecretKeySelector{
+		Key: "postgresql-password",
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: "postgres-secrets",
+		},
+	}
+
+	// Environment variables for DB connection
+	envVariables := []corev1.EnvVar{
+		{
+			Name:  "DB_SERVER",
+			Value: Bookingsd.Spec.DbServer,
+		},
+		{
+			Name:  "DB_PORT",
+			Value: Bookingsd.Spec.DbPort,
+		},
+		{
+			Name:  "DB_USER",
+			Value: Bookingsd.Spec.DbUser,
+		},
+		{
+			Name:  "DB_NAME",
+			Value: Bookingsd.Spec.DbName,
+		},
+		{
+			Name: "DB_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &PasswordSecret,
+			},
+		}}
+
+	// Define the init containers for the deployment
+	initContainers := []corev1.Container{
+		{
+			Image:           Bookingsd.Spec.InitContainerImage,
+			Name:            "init-bookings",
+			ImagePullPolicy: corev1.PullAlways,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &[]bool{true}[0],
+			},
+			Env: envVariables,
+		},
+	}
+
+	// Probes for the container, liveness and readiness
+	containerProbe := corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{"sh", "-ec", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/bookings|| exit 1"},
+			},
+		},
+		InitialDelaySeconds: 7,
+		TimeoutSeconds:      5,
+		PeriodSeconds:       10,
+		SuccessThreshold:    1,
+		FailureThreshold:    6,
+	}
+
+	// Define the main containers for the deployment
+	mainContainers := []corev1.Container{{
+		Image:           Bookingsd.Spec.ContainerImage,
+		Name:            "bookings",
+		ImagePullPolicy: corev1.PullAlways,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsNonRoot:             &[]bool{true}[0],
+			AllowPrivilegeEscalation: &[]bool{false}[0],
+		},
+		Env: envVariables,
+		Ports: []corev1.ContainerPort{{
+			ContainerPort: Bookingsd.Spec.ContainerPort,
+			Name:          "http",
+			Protocol:      corev1.ProtocolTCP,
+		}},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10m"),
+				corev1.ResourceMemory: resource.MustParse("10Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("100m"),
+				corev1.ResourceMemory: resource.MustParse("100Mi"),
+			},
+		},
+		LivenessProbe:  &containerProbe,
+		ReadinessProbe: &containerProbe,
+	}}
+
+	// Define a PodTemplateSpec object
+	podTemplate := corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: ls,
+		},
+		Spec: corev1.PodSpec{
+			SchedulerName: "stork",
+			Affinity:      &AffinityVar,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: &[]bool{true}[0],
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
+			InitContainers: initContainers,
+			Containers:     mainContainers,
+		}}
+
+	// Finally, define the Deployment
+	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Bookingsd.Name,
 			Namespace: Bookingsd.Namespace,
@@ -48,152 +163,16 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 			Selector: &metav1.LabelSelector{
 				MatchLabels: ls,
 			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					SchedulerName: "stork",
-					Affinity:      &AffinityVar,
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					InitContainers: []corev1.Container{{
-						Image:           Bookingsd.Spec.InitContainerImage,
-						Name:            "init-bookings",
-						ImagePullPolicy: corev1.PullAlways,
-						SecurityContext: &corev1.SecurityContext{
-							AllowPrivilegeEscalation: &[]bool{true}[0],
-						},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "DB_SERVER",
-								Value: Bookingsd.Spec.DbServer,
-							},
-							{
-								Name:  "DB_PORT",
-								Value: Bookingsd.Spec.DbPort,
-							},
-							{
-								Name:  "DB_USER",
-								Value: Bookingsd.Spec.DbUser,
-							},
-							{
-								Name:  "DB_NAME",
-								Value: Bookingsd.Spec.DbName,
-							},
-							{
-								Name: "DB_PASSWORD",
-								ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										Key: "postgresql-password",
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "postgres-secrets",
-										},
-									},
-								},
-							},
-						},
-					}},
-					Containers: []corev1.Container{{
-						Image:           Bookingsd.Spec.ContainerImage,
-						Name:            "bookings",
-						ImagePullPolicy: corev1.PullAlways,
-						SecurityContext: &corev1.SecurityContext{
-							RunAsNonRoot:             &[]bool{true}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
-						},
-						Env: []corev1.EnvVar{
-							{
-								Name:  "MAILHOG_HOST",
-								Value: Bookingsd.Spec.MailhogHost,
-							},
-							{
-								Name:  "MAILHOG_PORT",
-								Value: Bookingsd.Spec.MailhogPort,
-							},
-							{
-								Name:  "DB_SERVER",
-								Value: Bookingsd.Spec.DbServer,
-							},
-							{
-								Name:  "DB_PORT",
-								Value: Bookingsd.Spec.DbPort,
-							},
-							{
-								Name:  "DB_USER",
-								Value: Bookingsd.Spec.DbUser,
-							},
-							{
-								Name:  "DB_NAME",
-								Value: Bookingsd.Spec.DbName,
-							},
-							{
-								Name: "DB_PASSWORD",
-								ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										Key: "postgresql-password",
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "postgres-secrets",
-										},
-									},
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: Bookingsd.Spec.ContainerPort,
-							Name:          "http",
-							Protocol:      corev1.ProtocolTCP,
-						}},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("10m"),
-								corev1.ResourceMemory: resource.MustParse("10Mi"),
-							},
-							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("100m"),
-								corev1.ResourceMemory: resource.MustParse("100Mi"),
-							},
-						},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								Exec: &corev1.ExecAction{
-									Command: []string{"sh", "-ec", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/bookings|| exit 1"},
-								},
-							},
-							InitialDelaySeconds: 7,
-							TimeoutSeconds:      5,
-							PeriodSeconds:       10,
-							SuccessThreshold:    1,
-							FailureThreshold:    6,
-						},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								Exec: &corev1.ExecAction{
-									Command: []string{"sh", "-ec", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/bookings|| exit 1"},
-								},
-							},
-							InitialDelaySeconds: 7,
-							TimeoutSeconds:      5,
-							PeriodSeconds:       10,
-							SuccessThreshold:    1,
-							FailureThreshold:    6,
-						},
-					}},
-				},
-			},
+			Template: podTemplate,
 		},
 	}
 
 	// Set the ownerRef for the Deployment
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(Bookingsd, dep, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(Bookingsd, deployment, r.Scheme); err != nil {
 		return nil, err
 	}
-	return dep, nil
+	return deployment, nil
 }
 
 func (r *BookingsdReconciler) serviceForBookings(Bookingsd *bookingsv1alpha1.Bookingsd) (serviceBookings *corev1.Service, err error) {
