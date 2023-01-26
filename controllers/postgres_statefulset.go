@@ -15,7 +15,78 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 	ls := labelsForPostgres(Postgres.Name)
 	replicas := Postgres.Spec.Size
 
-	sts := &appsv1.StatefulSet{
+	// DB password for the DB connection from a Kubernetes secret
+	PasswordSecret := corev1.SecretKeySelector{
+		Key: "postgresql-password",
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: "postgres-secrets",
+		},
+	}
+
+	// Environment variables for DB connection
+	envVariables := []corev1.EnvVar{
+		{
+			Name:  "POSTGRES_DB",
+			Value: Postgres.Spec.PostgresDatabase,
+		},
+		{
+			Name:  "POSTGRES_USER",
+			Value: Postgres.Spec.PostgresUser,
+		},
+		{
+			Name:  "PGDATA",
+			Value: "/var/lib/postgresql/data",
+		},
+
+		{
+			Name: "POSTGRES_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &PasswordSecret,
+			},
+		},
+	}
+
+	// Postgres container definition
+	mainContainers := []corev1.Container{
+		{
+			Image:           Postgres.Spec.ContainerImage,
+			Name:            "postgres",
+			ImagePullPolicy: corev1.PullAlways,
+			SecurityContext: &corev1.SecurityContext{
+				Privileged:               &[]bool{true}[0],
+				AllowPrivilegeEscalation: &[]bool{true}[0],
+			},
+			Ports: []corev1.ContainerPort{
+				{
+					ContainerPort: Postgres.Spec.ContainerPort,
+					Name:          "postgres",
+				},
+			},
+			Env: envVariables,
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "postgres-persistent-storage",
+					MountPath: "/var/lib/postgresql/data",
+				},
+			},
+		},
+	}
+
+	// PVC Spec template
+	pvcSpecTemplate := corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
+		},
+		StorageClassName: &Postgres.Spec.StorageClassName,
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse(Postgres.Spec.StorageSize),
+			},
+		},
+	}
+
+	// StatefulSet template
+	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Postgres.Name,
 			Namespace: Postgres.Namespace,
@@ -30,54 +101,7 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 				},
 				Spec: corev1.PodSpec{
 					SchedulerName: "stork",
-					Containers: []corev1.Container{
-						{
-							Image:           Postgres.Spec.ContainerImage,
-							Name:            "postgres",
-							ImagePullPolicy: corev1.PullAlways,
-							SecurityContext: &corev1.SecurityContext{
-								Privileged:               &[]bool{true}[0],
-								AllowPrivilegeEscalation: &[]bool{true}[0],
-							},
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: Postgres.Spec.ContainerPort,
-									Name:          "postgres",
-								},
-							},
-							Env: []corev1.EnvVar{
-								{
-									Name:  "POSTGRES_USER",
-									Value: Postgres.Spec.PostgresUser,
-								},
-								{
-									Name: "POSTGRES_PASSWORD",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											Key: "postgresql-password",
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "postgres-secrets",
-											},
-										},
-									},
-								},
-								{
-									Name:  "POSTGRES_DB",
-									Value: Postgres.Spec.PostgresDatabase,
-								},
-								{
-									Name:  "PGDATA",
-									Value: "/var/lib/postgresql/data",
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "postgres-persistent-storage",
-									MountPath: "/var/lib/postgresql/data",
-								},
-							},
-						},
-					},
+					Containers:    mainContainers,
 				},
 			},
 			Replicas: &replicas,
@@ -85,17 +109,7 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "postgres-persistent-storage",
 				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{
-						corev1.ReadWriteOnce,
-					},
-					StorageClassName: &Postgres.Spec.StorageClassName,
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: resource.MustParse(Postgres.Spec.StorageSize),
-						},
-					},
-				},
+				Spec: pvcSpecTemplate,
 			},
 			},
 			ServiceName: "postgres-svc",
@@ -104,10 +118,10 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 
 	// Set the ownerRef for the StatefulSet
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(Postgres, sts, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(Postgres, statefulSet, r.Scheme); err != nil {
 		return nil, err
 	}
-	return sts, nil
+	return statefulSet, nil
 }
 
 func (r *PostgresReconciler) secretUserForPostgres(Postgres *bookingsv1alpha1.Postgres) (secretPostgres *corev1.Secret, err error) {
