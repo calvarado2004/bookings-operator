@@ -12,7 +12,9 @@ import (
 
 // statefulSetForPostgres returns a Postgres StatefulSet object
 func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.Postgres) (*appsv1.StatefulSet, error) {
-	ls := labelsForPostgres(Postgres.Name)
+
+	labelsPostgres := labelsForPostgres(Postgres.Name)
+
 	replicas := Postgres.Spec.Size
 
 	// DB password for the DB connection from a Kubernetes secret
@@ -93,11 +95,11 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
+				MatchLabels: labelsPostgres,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
+					Labels: labelsPostgres,
 				},
 				Spec: corev1.PodSpec{
 					SchedulerName: "stork",

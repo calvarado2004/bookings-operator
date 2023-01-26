@@ -14,7 +14,7 @@ import (
 func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1.Bookingsd) (*appsv1.Deployment, error) {
 
 	// Labels
-	ls := labelsForBookingsd(Bookingsd.Name)
+	labelsBookings := labelsForBookingsd(Bookingsd.Name)
 
 	// Replicas
 	replicas := Bookingsd.Spec.Size
@@ -137,7 +137,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 	// Define a PodTemplateSpec object
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: ls,
+			Labels: labelsBookings,
 		},
 		Spec: corev1.PodSpec{
 			SchedulerName: "stork",
@@ -161,7 +161,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
+				MatchLabels: labelsBookings,
 			},
 			Template: podTemplate,
 		},
