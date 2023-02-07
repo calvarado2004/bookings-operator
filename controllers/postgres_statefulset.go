@@ -13,6 +13,9 @@ import (
 // statefulSetForPostgres returns a Postgres StatefulSet object
 func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.Postgres) (*appsv1.StatefulSet, error) {
 
+	userid := int64(1000)
+	groupid := int64(2000)
+
 	labelsPostgres := labelsForPostgres(Postgres.Name)
 
 	replicas := Postgres.Spec.Size
@@ -54,12 +57,6 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 			Image:           Postgres.Spec.ContainerImage,
 			Name:            "postgres",
 			ImagePullPolicy: corev1.PullAlways,
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: &[]bool{true}[0],
-				RunAsUser:                &[]int64{0}[1000],
-				RunAsGroup:               &[]int64{0}[2000],
-				Privileged:               &[]bool{false}[0],
-			},
 			Ports: []corev1.ContainerPort{
 				{
 					ContainerPort: Postgres.Spec.ContainerPort,
@@ -107,9 +104,9 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 					SchedulerName: "stork",
 					Containers:    mainContainers,
 					SecurityContext: &corev1.PodSecurityContext{
-						RunAsUser:  &[]int64{0}[1000],
-						RunAsGroup: &[]int64{0}[2000],
-						FSGroup:    &[]int64{0}[2000],
+						RunAsUser:  &userid,
+						RunAsGroup: &groupid,
+						FSGroup:    &groupid,
 						FSGroupChangePolicy: &[]corev1.PodFSGroupChangePolicy{
 							corev1.FSGroupChangeOnRootMismatch,
 						}[0],

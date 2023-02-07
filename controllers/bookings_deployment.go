@@ -13,6 +13,9 @@ import (
 // deploymentForBookingsd returns a Bookingsd Deployment object
 func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1.Bookingsd) (*appsv1.Deployment, error) {
 
+	userid := int64(1000)
+	groupid := int64(2000)
+
 	// Labels
 	labelsBookings := labelsForBookingsd(Bookingsd.Name)
 
@@ -136,8 +139,8 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 			SchedulerName: "stork",
 			Affinity:      &AffinityVar,
 			SecurityContext: &corev1.PodSecurityContext{
-				RunAsUser:  &[]int64{0}[1000],
-				RunAsGroup: &[]int64{0}[2000],
+				RunAsUser:  &userid,
+				RunAsGroup: &groupid,
 			},
 			InitContainers: initContainers,
 			Containers:     mainContainers,
