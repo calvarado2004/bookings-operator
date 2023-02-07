@@ -110,6 +110,7 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 						FSGroupChangePolicy: &[]corev1.PodFSGroupChangePolicy{
 							corev1.FSGroupChangeOnRootMismatch,
 						}[0],
+						SupplementalGroups: []int64{0},
 					},
 				},
 			},
