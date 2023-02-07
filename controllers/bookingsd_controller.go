@@ -152,7 +152,10 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 			// Perform all operations required before remove the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
-			r.doFinalizerOperationsForBookingsd(Bookingsd)
+			err := r.doFinalizerOperationsForBookingsd(Bookingsd)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 
 			// TODO(user): If you add operations to the doFinalizerOperationsForBookingsd method
 			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
@@ -324,7 +327,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // doFinalizerOperationsForBookingsd will perform the required operations before delete the CR.
-func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1alpha1.Bookingsd) {
+func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1alpha1.Bookingsd) error {
 	// TODO(user): Add the cleanup steps that the operator
 	// needs to do before the CR can be deleted. Examples
 	// of finalizers include performing backups and deleting
@@ -342,7 +345,7 @@ func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1al
 			cr.Name,
 			cr.Namespace))
 
-	return
+	return nil
 }
 
 // labelsForBookingsd returns the labels for selecting the resources
