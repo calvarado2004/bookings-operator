@@ -152,10 +152,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 			// Perform all operations required before remove the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
-			err := r.doFinalizerOperationsForBookingsd(Bookingsd)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+			r.doFinalizerOperationsForBookingsd(Bookingsd)
 
 			// TODO(user): If you add operations to the doFinalizerOperationsForBookingsd method
 			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
@@ -327,7 +324,7 @@ func (r *BookingsdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // doFinalizerOperationsForBookingsd will perform the required operations before delete the CR.
-func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1alpha1.Bookingsd) error {
+func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1alpha1.Bookingsd) {
 	// TODO(user): Add the cleanup steps that the operator
 	// needs to do before the CR can be deleted. Examples
 	// of finalizers include performing backups and deleting
@@ -345,7 +342,23 @@ func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1al
 			cr.Name,
 			cr.Namespace))
 
-	return nil
+	err := r.Delete(context.Background(), &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Name,
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	err = r.Delete(context.Background(), &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Name,
+		},
+	})
+	if err != nil {
+		return
+	}
 }
 
 // labelsForBookingsd returns the labels for selecting the resources

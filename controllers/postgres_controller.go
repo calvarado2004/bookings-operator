@@ -269,10 +269,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 			// Perform all operations required before remove the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
-			err := r.doFinalizerOperationsForPostgres(Postgres)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+			r.doFinalizerOperationsForPostgres(Postgres)
 
 			if err := r.Get(ctx, req.NamespacedName, Postgres); err != nil {
 				log.Error(err, "Failed to re-fetch Postgres")
@@ -325,7 +322,7 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 // doFinalizerOperationsForPostgres will perform the required operations before delete the CR.
-func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alpha1.Postgres) error {
+func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alpha1.Postgres) {
 
 	// The following implementation will raise an event
 	r.Recorder.Event(cr, "Warning", "Deleting",
@@ -333,7 +330,33 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 			cr.Name,
 			cr.Namespace))
 
-	return nil
+	err := r.Delete(context.Background(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Name,
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	err = r.Delete(context.Background(), &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Name,
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	err = r.Delete(context.Background(), &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cr.Name,
+		},
+	})
+	if err != nil {
+		return
+	}
+
 }
 
 // labelsForPostgres returns the labels for selecting the resources for the Postgres StatefulSet
