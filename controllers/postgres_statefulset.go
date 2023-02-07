@@ -55,8 +55,10 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 			Name:            "postgres",
 			ImagePullPolicy: corev1.PullAlways,
 			SecurityContext: &corev1.SecurityContext{
-				Privileged:               &[]bool{true}[0],
 				AllowPrivilegeEscalation: &[]bool{true}[0],
+				RunAsUser:                &[]int64{0}[1000],
+				RunAsGroup:               &[]int64{0}[2000],
+				Privileged:               &[]bool{false}[0],
 			},
 			Ports: []corev1.ContainerPort{
 				{
@@ -104,6 +106,14 @@ func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.P
 				Spec: corev1.PodSpec{
 					SchedulerName: "stork",
 					Containers:    mainContainers,
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:  &[]int64{0}[1000],
+						RunAsGroup: &[]int64{0}[2000],
+						FSGroup:    &[]int64{0}[2000],
+						FSGroupChangePolicy: &[]corev1.PodFSGroupChangePolicy{
+							corev1.FSGroupChangeOnRootMismatch,
+						}[0],
+					},
 				},
 			},
 			Replicas: &replicas,

@@ -84,10 +84,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 			Image:           Bookingsd.Spec.InitContainerImage,
 			Name:            "init-bookings",
 			ImagePullPolicy: corev1.PullAlways,
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: &[]bool{true}[0],
-			},
-			Env: envVariables,
+			Env:             envVariables,
 		},
 	}
 
@@ -110,11 +107,7 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 		Image:           Bookingsd.Spec.ContainerImage,
 		Name:            "bookings",
 		ImagePullPolicy: corev1.PullAlways,
-		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             &[]bool{true}[0],
-			AllowPrivilegeEscalation: &[]bool{false}[0],
-		},
-		Env: envVariables,
+		Env:             envVariables,
 		Ports: []corev1.ContainerPort{{
 			ContainerPort: Bookingsd.Spec.ContainerPort,
 			Name:          "http",
@@ -143,10 +136,8 @@ func (r *BookingsdReconciler) deploymentForBookingsd(Bookingsd *bookingsv1alpha1
 			SchedulerName: "stork",
 			Affinity:      &AffinityVar,
 			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot: &[]bool{true}[0],
-				SeccompProfile: &corev1.SeccompProfile{
-					Type: corev1.SeccompProfileTypeRuntimeDefault,
-				},
+				RunAsUser:  &[]int64{0}[1000],
+				RunAsGroup: &[]int64{0}[2000],
 			},
 			InitContainers: initContainers,
 			Containers:     mainContainers,
