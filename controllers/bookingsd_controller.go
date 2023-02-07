@@ -341,6 +341,8 @@ func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1al
 		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
 			cr.Name,
 			cr.Namespace))
+
+	return
 }
 
 // labelsForBookingsd returns the labels for selecting the resources

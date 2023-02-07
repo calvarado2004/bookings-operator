@@ -329,6 +329,8 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
 			cr.Name,
 			cr.Namespace))
+
+	return
 }
 
 // labelsForPostgres returns the labels for selecting the resources for the Postgres StatefulSet
