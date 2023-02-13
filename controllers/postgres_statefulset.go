@@ -13,7 +13,7 @@ import (
 // statefulSetForPostgres returns a Postgres StatefulSet object
 func (r *PostgresReconciler) statefulSetForPostgres(Postgres *bookingsv1alpha1.Postgres) (*appsv1.StatefulSet, error) {
 
-	userid := int64(1000)
+	userid := int64(0)
 	groupid := int64(2000)
 
 	labelsPostgres := labelsForPostgres(Postgres.Name)
