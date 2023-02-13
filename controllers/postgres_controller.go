@@ -332,6 +332,14 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 	//		cr.Name,
 	//		cr.Namespace))
 
+	ok := controllerutil.RemoveFinalizer(cr, postgresFinalizer)
+	if ok {
+		if err := r.Update(context.Background(), cr); err != nil {
+			log.Error(err, "Failed to remove finalizer from Postgres")
+			return
+		}
+	}
+
 	// Let's delete the PVC that was created for the Postgres StatefulSet
 	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -343,14 +351,6 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 	err := r.Delete(context.Background(), &pvc)
 	if err != nil {
 		return
-	}
-
-	ok := controllerutil.RemoveFinalizer(cr, postgresFinalizer)
-	if ok {
-		if err := r.Update(context.Background(), cr); err != nil {
-			log.Error(err, "Failed to remove finalizer from Postgres")
-			return
-		}
 	}
 
 }
