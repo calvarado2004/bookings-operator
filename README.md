@@ -1,8 +1,8 @@
 # bookings-operator
-// TODO(user): Add simple overview of use/purpose
+Bookings is a Golang application that allows users to create bookings for a hotel. This project is a Kubernetes Operator that manages Bookings Custom Resources.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Bookings Operator is a Kubernetes Operator that manages Bookings Custom Resources.
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
@@ -18,13 +18,13 @@ kubectl apply -f config/samples/
 2. Build and push your image to the location specified by `IMG`:
 	
 ```sh
-make docker-build docker-push IMG=<some-registry>/bookings-operator:tag
+make docker-build docker-push IMG=calvarado2004/bookings-operator:latest
 ```
 	
 3. Deploy the controller to the cluster with the image specified by `IMG`:
 
 ```sh
-make deploy IMG=<some-registry>/bookings-operator:tag
+make deploy IMG=calvarado2004/bookings-operator:latest
 ```
 
 ### Uninstall CRDs

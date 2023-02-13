@@ -340,6 +340,8 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 		}
 	}
 
+	log.Info("Finalizer has been removed from Postgres")
+
 	// Let's delete the PVC that was created for the Postgres StatefulSet
 	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -348,10 +350,13 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 		},
 	}
 
-	err := r.Delete(context.Background(), &pvc)
+	err := r.Delete(context.Background(), &pvc, client.PropagationPolicy(metav1.DeletePropagationForeground))
 	if err != nil {
+		log.Error(err, "Failed to delete PVC")
 		return
 	}
+
+	log.Info("PVC was successfully deleted")
 
 }
 
