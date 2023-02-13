@@ -45,7 +45,7 @@ type PostgresReconciler struct {
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=postgres,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=postgres/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=bookings.calvarado04.com,resources=postgres/finalizers,verbs=update
-//+kubebuilder:rbac:groups=core,resources=pods;services;events;secrets;configmaps,verbs=create;patch;update;delete;get;list;watch
+//+kubebuilder:rbac:groups=core,resources=pods;services;events;secrets;configmaps;persistentvolumeclaims,verbs=create;patch;update;delete;get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
