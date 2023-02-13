@@ -335,7 +335,7 @@ func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alph
 	// Let's delete the PVC that was created for the Postgres StatefulSet
 	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "postgres-persistent-storage",
+			Name:      "postgres-persistent-storage-postgres-0",
 			Namespace: cr.Namespace,
 		},
 	}
