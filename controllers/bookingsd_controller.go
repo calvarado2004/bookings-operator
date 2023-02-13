@@ -336,29 +336,22 @@ func (r *BookingsdReconciler) doFinalizerOperationsForBookingsd(cr *bookingsv1al
 	// to set the ownerRef which means that the Deployment will be deleted by the Kubernetes API.
 	// More info: https://kubernetes.io/docs/tasks/administer-cluster/use-cascading-deletion/
 
+	log := log.FromContext(context.Background())
+
 	// The following implementation will raise an event
-	r.Recorder.Event(cr, "Warning", "Deleting",
-		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
-			cr.Name,
-			cr.Namespace))
+	//r.Recorder.Event(cr, "Warning", "Deleting",
+	//	fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
+	//		cr.Name,
+	//		cr.Namespace))
 
-	err := r.Delete(context.Background(), &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cr.Name,
-		},
-	})
-	if err != nil {
-		return
+	ok := controllerutil.RemoveFinalizer(cr, bookingsdFinalizer)
+	if ok {
+		if err := r.Update(context.Background(), cr); err != nil {
+			log.Error(err, "Failed to remove finalizer from Bookingsd")
+			return
+		}
 	}
 
-	err = r.Delete(context.Background(), &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cr.Name,
-		},
-	})
-	if err != nil {
-		return
-	}
 }
 
 // labelsForBookingsd returns the labels for selecting the resources
