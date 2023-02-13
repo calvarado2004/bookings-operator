@@ -86,6 +86,7 @@ rules:
   resources:
   - configmaps
   - events
+  - persistentvolumeclaims
   - pods
   - secrets
   - services
