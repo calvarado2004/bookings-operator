@@ -324,37 +324,20 @@ func (r *PostgresReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 // doFinalizerOperationsForPostgres will perform the required operations before delete the CR.
 func (r *PostgresReconciler) doFinalizerOperationsForPostgres(cr *bookingsv1alpha1.Postgres) {
 
+	log := log.FromContext(context.Background())
+
 	// The following implementation will raise an event
-	r.Recorder.Event(cr, "Warning", "Deleting",
-		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
-			cr.Name,
-			cr.Namespace))
+	//r.Recorder.Event(cr, "Warning", "Deleting",
+	//	fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
+	//		cr.Name,
+	//		cr.Namespace))
 
-	err := r.Delete(context.Background(), &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cr.Name,
-		},
-	})
-	if err != nil {
-		return
-	}
-
-	err = r.Delete(context.Background(), &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cr.Name,
-		},
-	})
-	if err != nil {
-		return
-	}
-
-	err = r.Delete(context.Background(), &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cr.Name,
-		},
-	})
-	if err != nil {
-		return
+	ok := controllerutil.RemoveFinalizer(cr, postgresFinalizer)
+	if ok {
+		if err := r.Update(context.Background(), cr); err != nil {
+			log.Error(err, "Failed to remove finalizer from Postgres")
+			return
+		}
 	}
 
 }
