@@ -29,4 +29,6 @@ FROM busybox:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 
+USER 1000
+
 ENTRYPOINT ["/manager"]
